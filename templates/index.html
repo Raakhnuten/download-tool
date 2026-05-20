@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All-in-one Downloader</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #1e1e2e;
+            --bg-secondary: #181825;
+            --bg-tertiary: #11111b;
+            --bg-surface: #252536;
+            --bg-hover: #2a2a3d;
+            --bg-active: #313148;
+            --border: #3a3a52;
+            --border-light: #45455e;
+            --text-primary: #cdd6f4;
+            --text-secondary: #a6adc8;
+            --text-muted: #6c7086;
+            --accent: #89b4fa;
+            --accent-hover: #b4d0fb;
+            --accent-bg: #89b4fa18;
+            --green: #a6e3a1;
+            --green-bg: #a6e3a118;
+            --red: #f38ba8;
+            --red-bg: #f38ba818;
+            --yellow: #f9e2af;
+            --yellow-bg: #f9e2af18;
+            --peach: #fab387;
+            --mauve: #cba6f7;
+            --radius: 8px;
+            --radius-sm: 6px;
+            --radius-lg: 12px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+        .app-layout {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-header .logo {
+            width: 32px;
+            height: 32px;
+            background: var(--accent);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .sidebar-header h1 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .sidebar-header .subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .sidebar-section {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .setting-row {
+            margin-bottom: 10px;
+        }
+
+        .setting-row label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 8px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-family: inherit;
+            transition: border-color 0.15s;
+        }
+
+        input[type="text"]:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        select { cursor: pointer; }
+
+        .output-row { display: flex; gap: 6px; }
+        .output-row input { flex: 1; }
+        .output-row .btn-browse {
+            padding: 8px 12px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s;
+        }
+        .output-row .btn-browse:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .checkbox-row label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .cookie-upload {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .cookie-upload-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .cookie-upload-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+        .cookie-upload-btn input[type="file"] {
+            display: none;
+        }
+
+        .cookie-status {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        .toolbar .url-input {
+            flex: 1;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-tertiary);
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-secondary {
+            background: var(--bg-surface);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+        .btn-scan {
+            background: var(--mauve);
+            color: var(--bg-tertiary);
+        }
+        .btn-scan:hover { background: #ddb8ff; }
+        .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-danger {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+        .btn-danger:hover { background: var(--red); color: var(--bg-tertiary); }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .tab-bar {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary);
+            padding: 0 16px;
+        }
+
+        .tab {
+            padding: 10px 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .tab:hover { color: var(--text-secondary); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            text-align: center;
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        .empty-state h3 {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 13px;
+            color: var(--text-muted);
+            max-width: 400px;
+        }
+
+        .thumb-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .thumb-card {
+            background: var(--bg-surface);
+            border: 2px solid transparent;
+            border-radius: var(--radius);
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+
+        .thumb-card:hover { border-color: var(--border-light); transform: translateY(-1px); }
+        .thumb-card.selected { border-color: var(--accent); background: var(--accent-bg); }
+        .thumb-card.error { border-color: var(--red); opacity: 0.6; }
+
+        .thumb-card img {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            display: block;
+        }
+
+        .thumb-card .info { padding: 10px; }
+
+        .thumb-card .title {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.4;
+        }
+
+        .thumb-card .duration {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .thumb-card .check-icon {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 22px;
+            height: 22px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: var(--bg-tertiary);
+            font-weight: 700;
+        }
+
+        .thumb-card.selected .check-icon { display: flex; }
+
+        .results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .results-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .results-header .count {
+            font-size: 12px;
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .results-actions {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .results-actions .btn { padding: 6px 12px; font-size: 11px; }
+
+        .log-panel {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 11px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+            color: var(--text-secondary);
+        }
+
+        .progress-section {
+            margin-bottom: 16px;
+        }
+
+        .progress-item {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+
+        .progress-item .title {
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .progress-item .meta {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 16px;
+            background: var(--bg-tertiary);
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .status-bar .left, .status-bar .right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+
+        .status-dot.idle { background: var(--text-muted); }
+        .status-dot.busy { background: var(--yellow); animation: pulse 1s infinite; }
+        .status-dot.error { background: var(--red); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            width: 480px;
+            max-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .modal-path {
+            font-size: 11px;
+            color: var(--text-muted);
+            padding: 6px 10px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            margin-bottom: 12px;
+            word-break: break-all;
+            font-family: 'Cascadia Code', monospace;
+        }
+
+        .modal-list { flex: 1; overflow-y: auto; max-height: 350px; }
+
+        .modal-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            transition: background 0.1s;
+        }
+
+        .modal-item:hover { background: var(--bg-hover); }
+        .modal-item .icon { color: var(--accent); }
+
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn-group { display: flex; gap: 8px; margin-top: 12px; }
+
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            right: 16px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px 16px;
+            font-size: 12px;
+            color: var(--text-primary);
+            box-shadow: var(--shadow-lg);
+            z-index: 200;
+            animation: slideIn 0.2s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin: 16px 0;
+        }
+
+        .pagination .page-btn {
+            padding: 6px 12px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .pagination .page-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+        .pagination .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .pagination .page-btn.active { background: var(--accent); color: var(--bg-tertiary); border-color: var(--accent); }
+
+        .pagination .page-info {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin: 0 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">⬇</div>
+                <div>
+                    <h1>Downloader</h1>
+                    <div class="subtitle">YouTube · TikTok · RedNote</div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Download Settings</div>
+                <div class="setting-row">
+                    <label>Quality</label>
+                    <select id="quality">
+                        <option value="best">Best Available</option>
+                        <option value="1080">1080p</option>
+                        <option value="720">720p</option>
+                        <option value="480">480p</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Output Folder</label>
+                    <div class="output-row">
+                        <input type="text" id="output" value="downloads">
+                        <button class="btn-browse" onclick="openFolderPicker()">Browse</button>
+                    </div>
+                </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="crop" checked>
+                    <label for="crop">Crop RedNote watermark</label>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Authentication</div>
+                <div class="cookie-upload">
+                    <label class="cookie-upload-btn" for="cookie-file">
+                        📄 Choose cookies file
+                        <input type="file" id="cookie-file" accept=".txt,.json,*">
+                    </label>
+                </div>
+                <div class="cookie-status" id="cookie-status">No cookies loaded</div>
+            </div>
+
+            <div class="sidebar-section" style="flex:1; border-bottom: none;">
+                <div class="sidebar-section-title">Quick Tips</div>
+                <div style="font-size: 11px; color: var(--text-muted); line-height: 1.6;">
+                    <p>Paste YouTube URLs and click <strong style="color:var(--mauve)">Scan</strong> to see thumbnails.</p>
+                    <p style="margin-top:6px">Click thumbnails to select which videos to download.</p>
+                    <p style="margin-top:6px">Upload cookies.txt for RedNote support.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="toolbar">
+                <input type="text" class="url-input" id="urls" placeholder="Paste URLs here — YouTube, TikTok, RedNote (one per line or space-separated)">
+                <button class="btn btn-scan" id="scan-btn" onclick="scanUrls()">
+                    <span id="scan-icon">🔍</span> Scan
+                </button>
+                <button class="btn btn-primary" id="download-btn" onclick="startDownload()">
+                    <span>⬇</span> Download
+                </button>
+            </div>
+
+            <div class="content-area">
+                <div class="tab-bar">
+                    <div class="tab active" data-tab="results" onclick="switchTab('results')">Results</div>
+                    <div class="tab" data-tab="progress" onclick="switchTab('progress')">Progress</div>
+                    <div class="tab" data-tab="log" onclick="switchTab('log')">Log</div>
+                </div>
+
+                <div class="tab-content">
+                    <div class="tab-panel active" id="panel-results">
+                        <div class="empty-state" id="empty-state">
+                            <div class="icon">🎬</div>
+                            <h3>No videos yet</h3>
+                            <p>Paste YouTube URLs above and click Scan to see video thumbnails, or paste direct download links and click Download.</p>
+                        </div>
+                        <div id="scan-results" style="display:none;">
+                            <div class="results-header">
+                                <h3 id="results-title">Scan Results</h3>
+                                <span class="count" id="selected-count">0 selected</span>
+                            </div>
+                            <div class="results-actions">
+                                <button class="btn btn-secondary" onclick="selectAllThumbs(true)">Select All</button>
+                                <button class="btn btn-secondary" onclick="selectAllThumbs(false)">Deselect All</button>
+                            </div>
+                            <div class="thumb-grid" id="thumb-grid"></div>
+                            <div class="pagination" id="pagination"></div>
+                            <div class="btn-group">
+                                <button class="btn btn-primary" onclick="downloadScanned()">Download Selected</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-panel" id="panel-progress">
+                        <div id="active-downloads"></div>
+                        <div class="empty-state" id="progress-empty">
+                            <div class="icon">📊</div>
+                            <h3>No active downloads</h3>
+                            <p>Downloads will appear here with real-time progress.</p>
+                        </div>
+                    </div>
+
+                    <div class="tab-panel" id="panel-log">
+                        <div class="log-panel" id="log">Waiting for activity...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <div class="left">
+                    <div class="status-indicator">
+                        <div class="status-dot idle" id="status-dot"></div>
+                        <span id="status-text">Idle</span>
+                    </div>
+                </div>
+                <div class="right">
+                    <span id="status-info">Ready</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="folder-modal">
+        <div class="modal">
+            <h3>Select Output Folder</h3>
+            <div class="modal-path" id="folder-path">Loading...</div>
+            <div class="modal-list" id="folder-list"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeFolderPicker()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmFolder()">Select This Folder</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pendingListUrls = [];
+        let currentFolderPath = "";
+        let scannedVideos = [];
+        let isDownloading = false;
+        let scanId = "";
+        let currentPage = 1;
+        let totalPages = 1;
+        let totalVideos = 0;
+        let selectedIndices = new Set();
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+            document.getElementById(`panel-${tab}`).classList.add('active');
+        }
+
+        function setStatus(state, text) {
+            const dot = document.getElementById('status-dot');
+            const txt = document.getElementById('status-text');
+            dot.className = 'status-dot ' + state;
+            txt.textContent = text;
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function appendLog(msg) {
+            const log = document.getElementById('log');
+            if (log.textContent === 'Waiting for activity...') log.textContent = '';
+            log.textContent += msg + '\n';
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function openFolderPicker() {
+            document.getElementById("folder-modal").classList.add("active");
+            await loadFolder("");
+        }
+
+        function closeFolderPicker() {
+            document.getElementById("folder-modal").classList.remove("active");
+        }
+
+        async function loadFolder(path) {
+            currentFolderPath = path;
+            const res = await fetch(`/api/list-dir?path=${encodeURIComponent(path)}`);
+            const data = await res.json();
+            const pathEl = document.getElementById("folder-path");
+            const listEl = document.getElementById("folder-list");
+
+            if (data.error) {
+                pathEl.textContent = data.error;
+                listEl.innerHTML = "";
+                return;
+            }
+
+            pathEl.textContent = data.current || "Select Drive";
+            listEl.innerHTML = "";
+
+            if (data.drives) {
+                data.drives.forEach(d => {
+                    const div = document.createElement("div");
+                    div.className = "modal-item";
+                    div.innerHTML = `<span class="icon">💾</span> ${d.name}`;
+                    div.onclick = () => loadFolder(d.path);
+                    listEl.appendChild(div);
+                });
+                return;
+            }
+
+            if (data.parent !== null) {
+                const div = document.createElement("div");
+                div.className = "modal-item";
+                div.innerHTML = `<span class="icon">📁</span> ..`;
+                div.onclick = () => loadFolder(data.parent);
+                listEl.appendChild(div);
+            }
+
+            (data.items || []).forEach(item => {
+                const div = document.createElement("div");
+                div.className = "modal-item";
+                div.innerHTML = `<span class="icon">📁</span> ${item.name}`;
+                div.onclick = () => loadFolder(item.path);
+                listEl.appendChild(div);
+            });
+        }
+
+        function confirmFolder() {
+            document.getElementById("output").value = currentFolderPath || "downloads";
+            closeFolderPicker();
+        }
+
+        document.getElementById("cookie-file").addEventListener("change", async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const statusEl = document.getElementById("cookie-status");
+            statusEl.textContent = "Uploading...";
+            try {
+                const form = new FormData();
+                form.append("file", file);
+                const res = await fetch("/api/upload-cookies", { method: "POST", body: form });
+                const data = await res.json();
+                if (data.success) {
+                    statusEl.textContent = `✅ Loaded: ${file.name}`;
+                    statusEl.style.color = "var(--green)";
+                    showToast("Cookies uploaded successfully");
+                } else {
+                    statusEl.textContent = "❌ Upload failed";
+                    statusEl.style.color = "var(--red)";
+                }
+            } catch (err) {
+                statusEl.textContent = "❌ Network error";
+                statusEl.style.color = "var(--red)";
+            }
+            e.target.value = "";
+        });
+
+        async function scanUrls() {
+            const text = document.getElementById("urls").value.trim();
+            if (!text) { showToast("Paste URLs first"); return; }
+
+            const btn = document.getElementById("scan-btn");
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Scanning...';
+            selectedIndices.clear();
+
+            document.getElementById("empty-state").style.display = "none";
+            document.getElementById("scan-results").style.display = "block";
+            document.getElementById("thumb-grid").innerHTML = "";
+            document.getElementById("pagination").innerHTML = "";
+            document.getElementById("selected-count").textContent = "0 selected";
+            document.getElementById("results-title").textContent = "Scanning...";
+
+            scannedVideos = [];
+            let count = 0;
+
+            switchTab('results');
+
+            try {
+                const res = await fetch("/api/scan", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ urls: text }),
+                });
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || "";
+
+                    for (const line of lines) {
+                        if (!line.startsWith("data: ")) continue;
+                        try {
+                            const msg = JSON.parse(line.slice(6));
+                            if (msg.type === "video") {
+                                count++;
+                                const v = msg.video;
+                                appendThumbCard(v, msg.index - 1);
+                                document.getElementById("results-title").textContent = `Scanning... ${count} found`;
+                            } else if (msg.type === "done") {
+                                scanId = msg.scan_id;
+                                totalVideos = msg.total;
+                                totalPages = msg.pages;
+                                currentPage = 1;
+                                document.getElementById("results-title").textContent = `Scan Results (${totalVideos} videos)`;
+                                showPagination();
+                                showToast(`Found ${totalVideos} videos`);
+                            }
+                        } catch (e) { /* skip parse errors */ }
+                    }
+                }
+            } catch (err) {
+                showToast("Scan failed: " + err.message);
+                document.getElementById("results-title").textContent = "Scan failed";
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<span id="scan-icon">🔍</span> Scan';
+        }
+
+        function appendThumbCard(v, globalIdx) {
+            const grid = document.getElementById("thumb-grid");
+            const card = document.createElement("div");
+            const isError = v.error;
+            card.className = "thumb-card" + (isError ? " error" : "");
+            card.dataset.globalIndex = globalIdx;
+            card.onclick = () => toggleThumb(card, globalIdx, isError);
+
+            const thumbUrl = v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`;
+            card.innerHTML = `
+                <img src="${thumbUrl}" alt="" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22320%22 height=%22180%22><rect fill=%22%23252536%22 width=%22320%22 height=%22180%22/><text x=%2250%25%22 y=%2250%25%22 fill=%22%236c7086%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2214%22>No Thumbnail</text></svg>'">
+                <div class="check-icon">✓</div>
+                <div class="info">
+                    <div class="title">${v.title}</div>
+                    ${v.duration ? `<div class="duration">${v.duration}</div>` : ""}
+                </div>
+            `;
+            grid.appendChild(card);
+            scannedVideos.push(v);
+        }
+
+        async function goToPage(page) {
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+
+            const grid = document.getElementById("thumb-grid");
+            grid.innerHTML = "";
+
+            const start = (page - 1) * 30;
+            const end = Math.min(start + 30, scannedVideos.length);
+            const pageVideos = scannedVideos.slice(start, end);
+
+            pageVideos.forEach((v, i) => {
+                const globalIdx = start + i;
+                const card = document.createElement("div");
+                const isSelected = !v.error && selectedIndices.has(globalIdx);
+                card.className = "thumb-card" + (v.error ? " error" : isSelected ? " selected" : "");
+                card.dataset.globalIndex = globalIdx;
+                card.onclick = () => toggleThumb(card, globalIdx, v.error);
+
+                const thumbUrl = v.thumbnail || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`;
+                card.innerHTML = `
+                    <img src="${thumbUrl}" alt="" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22320%22 height=%22180%22><rect fill=%22%23252536%22 width=%22320%22 height=%22180%22/><text x=%2250%25%22 y=%2250%25%22 fill=%22%236c7086%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2214%22>No Thumbnail</text></svg>'">
+                    <div class="check-icon">✓</div>
+                    <div class="info">
+                        <div class="title">${v.title}</div>
+                        ${v.duration ? `<div class="duration">${v.duration}</div>` : ""}
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            showPagination();
+        }
+
+        function showPagination() {
+            const container = document.getElementById("pagination");
+            if (totalPages <= 1) {
+                container.innerHTML = "";
+                return;
+            }
+
+            let html = "";
+            html += `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? "disabled" : ""}>← Prev</button>`;
+
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+                if (startPage > 2) html += `<span class="page-info">...</span>`;
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) html += `<span class="page-info">...</span>`;
+                html += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+            }
+
+            html += `<span class="page-info">${totalVideos} total</span>`;
+            html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? "disabled" : ""}>Next →</button>`;
+
+            container.innerHTML = html;
+        }
+
+        function toggleThumb(card, globalIdx, isError) {
+            if (isError) return;
+            if (selectedIndices.has(globalIdx)) {
+                selectedIndices.delete(globalIdx);
+                card.classList.remove("selected");
+            } else {
+                selectedIndices.add(globalIdx);
+                card.classList.add("selected");
+            }
+            updateSelectedCount();
+        }
+
+        function selectAllThumbs(state) {
+            const offset = (currentPage - 1) * 30;
+            document.querySelectorAll(".thumb-card").forEach(card => {
+                const globalIdx = parseInt(card.dataset.globalIndex);
+                const isError = card.classList.contains("error");
+                if (isError) return;
+                if (state) {
+                    selectedIndices.add(globalIdx);
+                    card.classList.add("selected");
+                } else {
+                    selectedIndices.delete(globalIdx);
+                    card.classList.remove("selected");
+                }
+            });
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            document.getElementById("selected-count").textContent = `${selectedIndices.size} selected`;
+        }
+
+        async function downloadScanned() {
+            if (selectedIndices.size === 0) { showToast("Select at least one video"); return; }
+
+            const urls = [];
+            for (const idx of selectedIndices) {
+                if (scannedVideos[idx] && !scannedVideos[idx].error) {
+                    urls.push(scannedVideos[idx].url);
+                }
+            }
+
+            if (urls.length === 0) { showToast("Could not resolve selected videos"); return; }
+            runDownload(urls);
+        }
+
+        async function startDownload() {
+            const text = document.getElementById("urls").value.trim();
+            if (!text) { showToast("Paste at least one URL"); return; }
+            const urls = text.split(/[\s\n]+/).filter(u => u.startsWith("http"));
+            if (urls.length === 0) { showToast("No valid URLs found"); return; }
+            runDownload(urls);
+        }
+
+        async function runDownload(urls) {
+            const btn = document.getElementById("download-btn");
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Downloading...';
+            isDownloading = true;
+            setStatus('busy', 'Downloading');
+            switchTab('progress');
+            document.getElementById('progress-empty').style.display = 'none';
+
+            const quality = document.getElementById("quality").value;
+            const output = document.getElementById("output").value || "downloads";
+            const crop = document.getElementById("crop").checked;
+
+            try {
+                const res = await fetch("/api/download", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ urls, quality, output, crop }),
+                });
+                const data = await res.json();
+                streamProgress(data.job_id);
+            } catch (err) {
+                appendLog("❌ Download failed: " + err.message);
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<span>⬇</span> Download';
+            isDownloading = false;
+            setStatus('idle', 'Idle');
+        }
+
+        function streamProgress(jobId) {
+            const activeDiv = document.getElementById("active-downloads");
+            const activeDownloads = {};
+            const evtSource = new EventSource(`/api/stream/${jobId}`);
+
+            evtSource.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if (msg.type === "done") {
+                    evtSource.close();
+                    setStatus('idle', 'Idle');
+                    document.getElementById('status-info').textContent = 'Download complete';
+                    showToast("All downloads finished!");
+                    return;
+                }
+                if (msg.type === "log") {
+                    appendLog(msg.message);
+                }
+                if (msg.type === "progress") {
+                    let card = activeDownloads[msg.title];
+                    if (!card) {
+                        card = document.createElement("div");
+                        card.className = "progress-item";
+                        card.innerHTML = `
+                            <div class="title">${msg.title}</div>
+                            <div class="meta">
+                                <span class="percent">0%</span>
+                                <span class="speed">-</span>
+                                <span class="eta">-</span>
+                            </div>
+                            <div class="progress-bar-container"><div class="progress-bar" style="width:0%"></div></div>
+                        `;
+                        activeDiv.appendChild(card);
+                        activeDownloads[msg.title] = card;
+                    }
+                    card.querySelector(".percent").textContent = msg.percent + "%";
+                    card.querySelector(".speed").textContent = msg.speed;
+                    card.querySelector(".eta").textContent = msg.eta;
+                    card.querySelector(".progress-bar").style.width = msg.percent + "%";
+                    document.getElementById('status-info').textContent = `Downloading: ${msg.title.substring(0, 40)}...`;
+                }
+            };
+
+            evtSource.onerror = () => { evtSource.close(); };
+        }
+    </script>
+</body>
+</html>
