@@ -7,21 +7,28 @@ from pathlib import Path
 
 import yt_dlp
 from fastapi import FastAPI, Request, UploadFile, File, Query
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from core import (
-    expand_youtube_list,
-    scan_youtube_urls,
     load_cookies,
     create_job,
     get_job,
     remove_job,
     start_download,
-    is_youtube,
+    detect_url_type,
+    get_profile_error,
+    normalize_video,
+    expand_youtube_channel,
+    expand_tiktok_profile,
+    extract_rednote_metadata,
+    extract_note_id,
 )
 
 app = FastAPI(title="All-in-one Downloader")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/image", StaticFiles(directory="image"), name="image")
 templates = Jinja2Templates(directory="templates")
 
 COOKIE_PATH = Path("cookies.txt")
@@ -65,57 +72,31 @@ async def list_dir(path: str = Query(default="")):
 
 async def _scan_generator(urls_str):
     parsed = [u.strip() for u in urls_str.split() if u.strip().startswith("http")]
-    yt_urls = [u for u in parsed if is_youtube(u)]
 
     scan_id = str(uuid.uuid4())[:8]
     all_videos = []
     idx = 0
+    cookies = load_cookies(COOKIE_PATH)
 
-    for url in yt_urls:
-        if "/@" in url or "/shorts" in url or "/videos" in url:
-            try:
-                videos = expand_youtube_list(url)
-                for v in videos:
-                    all_videos.append(v)
-                    idx += 1
-                    yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': v})}\n\n"
-                    await asyncio.sleep(0.02)
-            except Exception as e:
-                err_video = {
-                    "title": f"Error: {str(e)[:60]}",
-                    "url": url,
-                    "id": "",
-                    "thumbnail": "",
-                    "duration": "",
-                    "error": True,
-                }
-                all_videos.append(err_video)
-                idx += 1
-                yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': err_video})}\n\n"
-        else:
+    for url in parsed:
+        url_type = detect_url_type(url)
+
+        if url_type == "rednote_profile_unsupported":
+            msg = get_profile_error(url)
+            yield f"data: {json.dumps({'type': 'scan_log', 'message': msg})}\n\n"
+            continue
+
+        elif url_type == "youtube_video":
             try:
                 opts = {
                     "quiet": True,
                     "skip_download": True,
-                    "extractor_args": {
-                        "youtube": {
-                            "player_client": ["web", "android", "ios"],
-                        }
-                    },
                 }
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     info = ydl.extract_info(url, download=False)
-                video_id = info.get("id", "")
-                title = info.get("title", "Unknown")
-                thumbnail = info.get("thumbnail") or f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
-                duration = info.get("duration_string", "")
-                vid = {
-                    "title": title,
-                    "url": f"https://www.youtube.com/watch?v={video_id}",
-                    "id": video_id,
-                    "thumbnail": thumbnail,
-                    "duration": duration,
-                }
+                vid = normalize_video(info, "YouTube")
+                if not vid["thumbnail"] and vid["id"]:
+                    vid["thumbnail"] = f"https://i.ytimg.com/vi/{vid['id']}/hqdefault.jpg"
                 all_videos.append(vid)
                 idx += 1
                 yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': vid})}\n\n"
@@ -132,6 +113,84 @@ async def _scan_generator(urls_str):
                 idx += 1
                 yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': err_video})}\n\n"
 
+        elif url_type == "youtube_channel":
+            try:
+                channel_videos = expand_youtube_channel(url)
+                if not channel_videos:
+                    raise Exception("No videos found in channel tab.")
+                for vid in channel_videos:
+                    all_videos.append(vid)
+                    idx += 1
+                    yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': vid})}\n\n"
+            except Exception as e:
+                err_video = {
+                    "title": f"Error scanning channel: {str(e)[:60]}",
+                    "url": url,
+                    "id": "",
+                    "thumbnail": "",
+                    "duration": "",
+                    "error": True,
+                    "platform": "YouTube",
+                }
+                all_videos.append(err_video)
+                idx += 1
+                yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': err_video})}\n\n"
+
+        elif url_type == "tiktok_video":
+            platform = "TikTok"
+            vid = {
+                "title": f"Direct {platform} link — ready to download",
+                "url": url,
+                "id": "",
+                "thumbnail": "",
+                "duration": "",
+                "platform": platform,
+            }
+            all_videos.append(vid)
+            idx += 1
+            yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': vid})}\n\n"
+
+        elif url_type == "tiktok_profile":
+            try:
+                profile_videos = expand_tiktok_profile(url)
+                if not profile_videos:
+                    raise Exception("No videos found on profile.")
+                for vid in profile_videos:
+                    all_videos.append(vid)
+                    idx += 1
+                    yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': vid})}\n\n"
+            except Exception as e:
+                err_video = {
+                    "title": f"Error scanning profile: {str(e)[:60]}",
+                    "url": url,
+                    "id": "",
+                    "thumbnail": "",
+                    "duration": "",
+                    "error": True,
+                    "platform": "TikTok",
+                }
+                all_videos.append(err_video)
+                idx += 1
+                yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': err_video})}\n\n"
+
+        elif url_type == "rednote_video":
+            meta = extract_rednote_metadata(url, cookies=cookies)
+            note_id = meta.get("note_id") or ""
+            vid = {
+                "title": meta.get("title") or "RedNote post",
+                "url": url,
+                "id": note_id,
+                "thumbnail": meta.get("thumbnail") or "",
+                "duration": "",
+                "platform": "RedNote",
+            }
+            all_videos.append(vid)
+            idx += 1
+            yield f"data: {json.dumps({'type': 'video', 'index': idx, 'video': vid})}\n\n"
+
+        else:
+            yield f"data: {json.dumps({'type': 'scan_log', 'message': f'Unsupported URL: {url[:80]}'})}\n\n"
+
     with _scan_cache_lock:
         _scan_cache[scan_id] = all_videos
 
@@ -146,8 +205,7 @@ async def scan_urls(request: Request):
     urls = body.get("urls", "")
 
     parsed = [u.strip() for u in urls.split() if u.strip().startswith("http")]
-    yt_urls = [u for u in parsed if is_youtube(u)]
-    if not yt_urls:
+    if not parsed:
         async def empty_gen():
             yield f"data: {json.dumps({'type': 'done', 'scan_id': '', 'total': 0, 'pages': 0})}\n\n"
         return StreamingResponse(empty_gen(), media_type="text/event-stream")
@@ -184,17 +242,6 @@ async def scan_page(request: Request):
     }
 
 
-@app.post("/api/fetch-videos")
-async def fetch_videos(request: Request):
-    body = await request.json()
-    url = body.get("url", "")
-    try:
-        videos = expand_youtube_list(url)
-        return {"success": True, "videos": videos, "count": len(videos)}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
 @app.post("/api/upload-cookies")
 async def upload_cookies(file: UploadFile = File(...)):
     try:
@@ -212,21 +259,25 @@ async def start_download_endpoint(request: Request):
     quality = body.get("quality")
     crop = body.get("crop", True)
     output = body.get("output", str(DEFAULT_OUTPUT))
+    download_mode = body.get("download_mode", "video_audio")
 
-    if quality and quality != "best":
-        try:
-            quality = int(quality)
-        except ValueError:
-            quality = None
-    else:
-        quality = None
+    print(f"Received quality: {quality}, download_mode: {download_mode}")
+
+    ALLOWED_DOWNLOAD_MODES = {"video_audio", "audio_mp3", "video_mute"}
+    if download_mode not in ALLOWED_DOWNLOAD_MODES:
+        download_mode = "video_audio"
+
+    try:
+        quality = int(quality) if quality else 720
+    except ValueError:
+        quality = 720
 
     cookies = load_cookies(COOKIE_PATH)
     job_id = create_job()
 
     threading.Thread(
         target=start_download,
-        args=(urls, Path(output), quality, crop, cookies, job_id),
+        args=(urls, Path(output), quality, crop, cookies, job_id, download_mode),
         daemon=True,
     ).start()
 
@@ -258,6 +309,44 @@ async def stream_progress(job_id: str):
             await asyncio.sleep(0.2)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.get("/api/browse-folder")
+def browse_folder():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        print("[browse-folder] Endpoint called")
+        print("[browse-folder] Opening Windows folder picker...")
+
+        root = tk.Tk()
+        root.withdraw()
+        root.lift()
+        root.attributes("-topmost", True)
+        root.update()
+
+        folder = filedialog.askdirectory(
+            parent=root,
+            title="Select output folder",
+            mustexist=True
+        )
+
+        root.destroy()
+
+        if not folder:
+            print("[browse-folder] Cancelled")
+            return JSONResponse({"path": None, "cancelled": True})
+
+        print(f"[browse-folder] Selected: {folder}")
+        return JSONResponse({"path": folder, "cancelled": False})
+
+    except Exception as e:
+        print(f"[browse-folder] Error: {e}")
+        return JSONResponse(
+            {"path": None, "cancelled": False, "error": str(e)},
+            status_code=500
+        )
 
 
 if __name__ == "__main__":

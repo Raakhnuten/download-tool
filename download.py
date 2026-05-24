@@ -20,10 +20,33 @@ def get_ffmpeg_path():
     if getattr(sys, 'frozen', False):
         return os.path.join(sys._MEIPASS, "ffmpeg.exe")
     return "ffmpeg"
-DEFAULT_UA = "Mozilla/5.0"
+DEFAULT_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
 NOTE_ID_RE = re.compile(
-    r"/(?:explore|discovery/item|item|user/profile/[0-9a-fA-F]{16,32})/([0-9a-fA-F]{16,32})"
+    r"/(?:explore|discovery/item|item)/([0-9a-fA-F]{16,32})"
+)
+
+REDNOTE_NOTE_HREF_RE = re.compile(
+    r'href\s*=\s*["\'](?:https?://(?:www\.)?(?:rednote\.com|xiaohongshu\.com))?/explore/([0-9a-fA-F]{16,32})["\']'
+)
+
+REDNOTE_NOTE_ID_IN_JSON_RE = re.compile(
+    r'"note_id"\s*:\s*"([0-9a-fA-F]{16,32})"'
+)
+
+REDNOTE_DISPLAY_TITLE_RE = re.compile(
+    r'"display_title"\s*:\s*"((?:[^"\\]|\\.)*)"'
+)
+
+REDNOTE_COVER_URL_RE = re.compile(
+    r'"cover"\s*:\s*\{[^}]*"url"\s*:\s*"((?:[^"\\]|\\.)*)"'
+)
+
+REDNOTE_NOTE_TYPE_RE = re.compile(
+    r'"type"\s*:\s*"(video|normal|audio)"'
 )
 
 INITIAL_STATE_RE = re.compile(
@@ -34,8 +57,46 @@ INITIAL_STATE_RE = re.compile(
 INVALID_FS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
 
 
+def clean_url(value):
+    if not value:
+        return None
+    value = str(value).strip()
+    if not value:
+        return None
+    value = value.replace("\\u002F", "/")
+    value = value.replace("\\/", "/")
+    value = value.replace("&amp;", "&")
+    value = html.unescape(value)
+    if "<" in value or ">" in value:
+        return None
+    if '"' in value or "'" in value:
+        return None
+    if not value.startswith("http"):
+        return None
+    return value
+
+
 def is_rednote(url):
-    return "xiaohongshu" in url.lower() or "xhslink" in url.lower()
+    return "xiaohongshu" in url.lower() or "xhslink" in url.lower() or "rednote.com" in url.lower()
+
+
+def _rednote_headers(url=""):
+    is_rednote_domain = "rednote.com" in url.lower()
+    base = "https://www.rednote.com/" if is_rednote_domain else "https://www.xiaohongshu.com/"
+    return {
+        "User-Agent": DEFAULT_UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,km;q=0.8,zh-CN;q=0.7,zh;q=0.6",
+        "Referer": base,
+        "Connection": "keep-alive",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Upgrade-Insecure-Requests": "1",
+    }
 
 
 def is_youtube(url):
@@ -235,13 +296,13 @@ def select_videos(videos):
 
 
 def ytdlp_format(quality):
-    if quality == 480:
-        return "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
-    if quality == 720:
-        return "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-    if quality == 1080:
-        return "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-
+    quality = str(quality or "720")
+    if quality == "1080":
+        return "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]/best"
+    if quality == "720":
+        return "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best"
+    if quality == "480":
+        return "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best"
     return "bestvideo*+bestaudio/best"
 
 
@@ -258,13 +319,14 @@ def download_ytdlp(url, output, quality, platform_name):
             "continuedl": True,
             "retries": 10,
             "fragment_retries": 10,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["web", "android", "ios", "tv_embedded"],
-                    "player_skip": ["webpage"],
-                }
-            },
         }
+        if Path("cookies.txt").exists():
+            opts["cookiefile"] = "cookies.txt"
+
+        from core import find_ffmpeg
+        ffmpeg_path = find_ffmpeg()
+        if ffmpeg_path:
+            opts["ffmpeg_location"] = ffmpeg_path
 
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
@@ -284,32 +346,146 @@ def decode_state(raw):
     return json.loads(raw)
 
 
-def find_rednote_video(state, note_id):
-    note_map = state["note"]["noteDetailMap"]
-    entry = note_map.get(note_id) or next(iter(note_map.values()))
-    note = entry["note"]
+def _extract_video_urls_from_note(note):
+    """Extract video URLs from a RedNote note object using multiple strategies. Returns list of (codec, url)."""
+    candidates = []
 
-    title = note.get("title") or note.get("desc") or note_id
-
+    # Strategy 1: video.media.stream.{codec}[0].masterUrl
     video = note.get("video") or {}
     media = video.get("media") or {}
     stream = media.get("stream") or {}
-
-    for codec in ("h265", "av1", "h264"):
+    for codec in ("h265", "av1", "h264", "h266"):
         arr = stream.get(codec) or []
+        if arr and isinstance(arr, list):
+            for item in arr:
+                if isinstance(item, dict):
+                    url = item.get("masterUrl")
+                    if url:
+                        clean = clean_url(url)
+                        if clean:
+                            candidates.append((codec, clean))
+                    backup = item.get("backupUrls") or []
+                    if backup and isinstance(backup, list):
+                        for b in backup:
+                            clean = clean_url(b)
+                            if clean:
+                                candidates.append((f"{codec}_backup", clean))
 
-        if arr:
-            video_url = arr[0].get("masterUrl")
+    # Strategy 2: video.url (direct URL)
+    direct_url = video.get("url")
+    if direct_url:
+        clean = clean_url(direct_url)
+        if clean:
+            candidates.append(("direct", clean))
 
-            if not video_url:
-                backup_urls = arr[0].get("backupUrls") or []
-                video_url = backup_urls[0] if backup_urls else None
+    # Strategy 3: video.media.videoUrl
+    video_url = media.get("videoUrl") or media.get("video_url")
+    if video_url:
+        clean = clean_url(video_url)
+        if clean:
+            candidates.append(("media_videoUrl", clean))
 
-            if video_url:
-                return title, video_url
+    # Strategy 4: video.consumer.originVideoUrl
+    consumer = video.get("consumer") or {}
+    origin_url = consumer.get("originVideoUrl")
+    if origin_url:
+        clean = clean_url(origin_url)
+        if clean:
+            candidates.append(("consumer_origin", clean))
 
-    if video.get("url"):
-        return title, video["url"]
+    # Strategy 5: imageList with video type
+    images = note.get("imageList") or note.get("images_list") or note.get("images") or []
+    if images and isinstance(images, list):
+        for img in images:
+            if isinstance(img, dict):
+                if img.get("type") == "VIDEO" or img.get("isVideo"):
+                    img_url = img.get("url") or img.get("urlDefault") or img.get("original")
+                    if img_url:
+                        clean = clean_url(img_url)
+                        if clean:
+                            candidates.append(("imageList_video", clean))
+                stream_data = img.get("stream") or {}
+                for codec in ("h265", "av1", "h264"):
+                    arr = stream_data.get(codec) or []
+                    if arr and isinstance(arr, list):
+                        for item in arr:
+                            if isinstance(item, dict):
+                                url = item.get("masterUrl")
+                                if url:
+                                    clean = clean_url(url)
+                                    if clean:
+                                        candidates.append((f"imageList_{codec}", clean))
+
+    # Strategy 6: noteCard.videoUrl
+    note_card = note.get("noteCard") or {}
+    if isinstance(note_card, dict):
+        nc_video = note_card.get("video") or {}
+        if isinstance(nc_video, dict):
+            nc_url = nc_video.get("url") or nc_video.get("videoUrl")
+            if nc_url:
+                clean = clean_url(nc_url)
+                if clean:
+                    candidates.append(("noteCard", clean))
+
+    return candidates
+
+
+def find_rednote_video(state, note_id):
+    # Try to find the note in noteDetailMap
+    note = None
+    note_map = state.get("note", {}).get("noteDetailMap", {})
+
+    if note_id and note_id in note_map:
+        entry = note_map[note_id]
+        note = entry.get("note") if isinstance(entry, dict) else None
+    elif note_map:
+        first_key = next(iter(note_map))
+        entry = note_map[first_key]
+        note = entry.get("note") if isinstance(entry, dict) else None
+
+    # Fallback: search entire state for matching note_id
+    if not note and note_id:
+        def search_notes(obj, depth=0):
+            if depth > 10:
+                return None
+            if isinstance(obj, dict):
+                if obj.get("noteId") == note_id or obj.get("note_id") == note_id:
+                    return obj
+                for v in obj.values():
+                    result = search_notes(v, depth + 1)
+                    if result:
+                        return result
+            elif isinstance(obj, list):
+                for item in obj:
+                    result = search_notes(item, depth + 1)
+                    if result:
+                        return result
+            return None
+
+        note = search_notes(state)
+
+    if not note:
+        return None
+
+    # Extract title
+    title = (
+        note.get("title")
+        or note.get("displayTitle")
+        or note.get("display_title")
+        or note.get("desc")
+        or note.get("description")
+        or note_id
+        or "RedNote video"
+    )
+
+    # Extract video URLs using multiple strategies
+    candidates = _extract_video_urls_from_note(note)
+
+    if candidates:
+        for codec, url in candidates:
+            if codec in ("h264", "h265", "av1", "direct", "media_videoUrl"):
+                return title, url
+        return title, candidates[0][1]
 
     return None
 
@@ -318,13 +494,9 @@ def get_rednote_info(client, url):
     note_id = extract_note_id(url)
 
     if not note_id:
-        raise Exception("Invalid RedNote URL.")
+        raise Exception(f"Invalid RedNote URL. Could not extract note_id from: {url}")
 
-    headers = {
-        "User-Agent": DEFAULT_UA,
-        "Referer": "https://www.xiaohongshu.com/",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-    }
+    headers = _rednote_headers(url)
 
     response = client.get(
         url,
@@ -336,7 +508,23 @@ def get_rednote_info(client, url):
     if response.status_code != 200:
         raise Exception(f"HTTP error: {response.status_code}")
 
-    match = INITIAL_STATE_RE.search(response.text)
+    text = response.text
+
+    # Check for login-required page
+    if "login" in text.lower() and "sign in" in text.lower() and len(text) < 50000:
+        pass  # Will likely fail below, but let the normal error handle it
+
+    match = INITIAL_STATE_RE.search(text)
+
+    if not match:
+        alt_patterns = [
+            re.compile(r"__INITIAL_STATE__\s*=\s*(\{.*?\})\s*;\s*</script>", re.DOTALL),
+            re.compile(r"window\.__INITIAL_STATE__\s*=\s*(\{.*?\})\s*;\s*", re.DOTALL),
+        ]
+        for pat in alt_patterns:
+            match = pat.search(text)
+            if match:
+                break
 
     if not match:
         raise Exception("Cannot find video data. Cookie may be expired.")
@@ -360,10 +548,7 @@ def get_rednote_info(client, url):
 
 
 def download_rednote_file(client, url, path):
-    headers = {
-        "User-Agent": DEFAULT_UA,
-        "Referer": "https://www.xiaohongshu.com/",
-    }
+    headers = _rednote_headers(url)
 
     temp_path = path.with_suffix(path.suffix + ".part")
 
