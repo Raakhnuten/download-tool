@@ -54,8 +54,30 @@ def clean_url(value):
 
 
 def get_ffmpeg_path():
-    if getattr(sys, 'frozen', False):
-        return os.path.join(sys._MEIPASS, "ffmpeg.exe")
+    candidates = []
+    if getattr(sys, "frozen", False):
+        candidates.append(os.path.join(sys._MEIPASS, "tools", "ffmpeg", "ffmpeg.exe"))
+        candidates.append(os.path.join(os.path.dirname(sys.executable), "ffmpeg.exe"))
+        candidates.append(os.path.join(sys._MEIPASS, "ffmpeg.exe"))
+    base_dir = os.environ.get("DOWNLOADER_BASE_DIR", "")
+    if base_dir:
+        candidates.append(os.path.join(base_dir, "tools", "ffmpeg", "ffmpeg.exe"))
+        candidates.append(os.path.join(base_dir, "ffmpeg.exe"))
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    for path in [
+        "C:\\ffmpeg-8.1-essentials_build\\bin\\ffmpeg.exe",
+        "C:\\ffmpeg-8.1-essentials_build\\bin\\ffmpeg.EXE",
+        "C:\\ffmpeg-8.0-essentials_build\\bin\\ffmpeg.exe",
+        "C:\\ffmpeg-8.0-essentials_build\\bin\\ffmpeg.EXE",
+    ]:
+        if os.path.exists(path):
+            return path
+    import shutil
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
     return "ffmpeg"
 
 
@@ -298,18 +320,35 @@ def expand_tiktok_profile(url):
 
 def find_ffmpeg():
     import shutil
-    known = [
+    known = []
+
+    # 1. Bundled in PyInstaller _internal/tools/ffmpeg/
+    if getattr(sys, "frozen", False):
+        known.append(Path(sys._MEIPASS) / "tools" / "ffmpeg" / "ffmpeg.exe")
+        known.append(Path(sys.executable).parent / "ffmpeg.exe")
+        known.append(Path(sys._MEIPASS) / "ffmpeg.exe")
+    else:
+        base = Path(os.environ.get("DOWNLOADER_BASE_DIR", Path(__file__).parent))
+        known.append(base / "tools" / "ffmpeg" / "ffmpeg.exe")
+        known.append(base / "ffmpeg.exe")
+
+    # 2. Common system install paths
+    known.extend([
+        Path("C:\\ffmpeg-8.1-essentials_build\\bin\\ffmpeg.exe"),
+        Path("C:\\ffmpeg-8.1-essentials_build\\bin\\ffmpeg.EXE"),
         Path("C:\\ffmpeg-8.0-essentials_build\\bin\\ffmpeg.exe"),
         Path("C:\\ffmpeg-8.0-essentials_build\\bin\\ffmpeg.EXE"),
-        Path("ffmpeg.exe"),
-        Path("tools/ffmpeg.exe"),
-    ]
+    ])
+
     for p in known:
         if p.exists():
             return str(p.parent.resolve())
+
+    # 3. System PATH
     found = shutil.which("ffmpeg")
     if found:
         return str(Path(found).parent.resolve())
+
     return None
 
 

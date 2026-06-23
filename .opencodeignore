@@ -1,0 +1,13 @@
+.cleanup_backup/
+dist/
+build/
+downloads/
+unused-icons/
+*.mp4
+*.mp3
+*.m4a
+*.webm
+*.exe
+*.png
+*.jpg
+*.jpeg

@@ -17,8 +17,15 @@ import sys
 import os
 
 def get_ffmpeg_path():
-    if getattr(sys, 'frozen', False):
-        return os.path.join(sys._MEIPASS, "ffmpeg.exe")
+    if getattr(sys, "frozen", False):
+        bundled = os.path.join(sys._MEIPASS, "ffmpeg.exe")
+        if os.path.exists(bundled):
+            return bundled
+    base_dir = os.environ.get("DOWNLOADER_BASE_DIR", "")
+    if base_dir:
+        local_ffmpeg = os.path.join(base_dir, "ffmpeg.exe")
+        if os.path.exists(local_ffmpeg):
+            return local_ffmpeg
     return "ffmpeg"
 DEFAULT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

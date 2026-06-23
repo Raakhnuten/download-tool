@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import sys
 import threading
 import uuid
 from pathlib import Path
@@ -26,10 +27,18 @@ from core import (
     extract_note_id,
 )
 
+
+def _get_base_path():
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS)
+    return Path(os.environ.get("DOWNLOADER_BASE_DIR", Path(__file__).parent))
+
+
+BASE = _get_base_path()
+
 app = FastAPI(title="All-in-one Downloader")
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/image", StaticFiles(directory="image"), name="image")
-templates = Jinja2Templates(directory="templates")
+app.mount("/image", StaticFiles(directory=str(BASE / "image")), name="image")
+templates = Jinja2Templates(directory=str(BASE / "templates"))
 
 COOKIE_PATH = Path("cookies.txt")
 DEFAULT_OUTPUT = Path("downloads")
